@@ -144,6 +144,8 @@ function get_attribute_type($type=''){
         'editor'    =>  array('编辑器','text NOT NULL'),
         'picture'   =>  array('上传图片','int(10) UNSIGNED NOT NULL'),
         'file'      =>  array('上传附件','int(10) UNSIGNED NOT NULL'),
+		'hidden'    =>  array('隐藏','varchar(255) NOT NULL'),
+		'map'    =>  array('地图','varchar(30) NOT NULL'),
     );
     return $type?$_type[$type][0]:$_type;
 }
@@ -358,30 +360,7 @@ function get_subdocument_count($id=0){
 
 
 
- // 分析枚举类型字段值 格式 a:名称1,b:名称2
- // 暂时和 parse_config_attr功能相同
- // 但请不要互相使用，后期会调整
-function parse_field_attr($string) {
-    if(0 === strpos($string,':')){
-        // 采用函数定义
-        return   eval('return '.substr($string,1).';');
-    }elseif(0 === strpos($string,'[')){
-        // 支持读取配置参数（必须是数组类型）
-        return C(substr($string,1,-1));
-    }
-    
-    $array = preg_split('/[,;\r\n]+/', trim($string, ",;\r\n"));
-    if(strpos($string,':')){
-        $value  =   array();
-        foreach ($array as $val) {
-            list($k, $v) = explode(':', $val);
-            $value[$k]   = $v;
-        }
-    }else{
-        $value  =   $array;
-    }
-    return $value;
-}
+
 
 /**
  * 获取行为数据

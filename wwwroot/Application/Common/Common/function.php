@@ -1016,3 +1016,52 @@ function check_category_model($info){
     $array  =   explode(',', $info['pid'] ? $cate['model_sub'] : $cate['model']);
     return in_array($info['model_id'], $array);
 }
+
+
+// 分析枚举类型字段值 格式 a:名称1,b:名称2
+// 暂时和 parse_config_attr功能相同
+// 但请不要互相使用，后期会调整
+function parse_field_attr($string) {
+    if(0 === strpos($string,':')){
+        // 采用函数定义
+        return   eval('return '.substr($string,1).';');
+    }elseif(0 === strpos($string,'[')){
+        // 支持读取配置参数（必须是数组类型）
+        return C(substr($string,1,-1));
+    }
+
+    $array = preg_split('/[,;\r\n]+/', trim($string, ",;\r\n"));
+    if(strpos($string,':')){
+        $value  =   array();
+        foreach ($array as $val) {
+            list($k, $v) = explode(':', $val);
+            $value[$k]   = $v;
+        }
+    }else{
+        $value  =   $array;
+    }
+    return $value;
+}
+
+function isMobile(){
+    return false;
+}
+
+function get_extra($model_id,$name){
+    $where['model_id'] = $model_id;
+    $where['name'] = $name;
+    $extra = M('Attribute')->where($where)->find()['extra'];
+    $extra = parse_field_attr($extra);
+    return $extra;
+}
+
+function enum_value($type,$keys){
+    $extra = get_extra(5,$type);
+    $keys = explode(',',$keys);
+    $values = [];
+    foreach ($keys as $k) {
+        $values[] = $extra[$k];
+    }
+    return implode('/',$values);
+}
+
