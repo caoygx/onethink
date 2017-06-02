@@ -31,7 +31,7 @@
                                 <input type="text" class="text input-large" name="{$field.name}" id="{$field.name}" value="">
                             </case>
                             <case value="hidden">
-                                <input type="hidden" class="text input-large" name="{$field.name}" value="{$Think.request.cemetery_id}">
+                                <input type="hidden" class="text input-large" name="{$field.name}" value="{$Think.request.category_id}">
                             </case>
                             <case value="textarea">
                                 <label class="textarea input-large">
@@ -313,8 +313,6 @@
 
 
 
-
-
         <div class="form-item cf">
             <button class="btn submit-btn ajax-post hidden" id="submit" type="submit" target-form="form-horizontal">确 定</button>
             <a class="btn btn-return" href="javascript:;">返 回</a>
@@ -322,9 +320,6 @@
     </form>
     </div>
 </div>
-
-
-
 </block>
 
 <block name="script">
