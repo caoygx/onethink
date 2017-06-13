@@ -1232,3 +1232,89 @@ function sendmail($subject,$body,$to,$toname,$from = "",$fromname = '网',$altbo
         //echo "Message sent!";
     }
 }
+
+function getAd($page,$position,$num=1){
+    //广告
+    $where = [];
+    $where['page'] = $page;
+    $where['position'] = $position;
+    $r = M("Ad")->where($where)->select();
+    if($num == 1) return $r[0];
+    return $r;
+}
+
+
+function get_extra($model_id,$name){
+    $where['model_id'] = $model_id;
+    $where['name'] = $name;
+    $extra = M('Attribute')->where($where)->find()['extra'];
+    $extra = parse_field_attr($extra);
+    return $extra;
+}
+
+//单个key
+function enum_value($type,$keys){
+    $extra = get_extra(6,$type);
+    $values = [];
+    foreach ($keys as $k) {
+        $values[] = $extra[$k];
+    }
+    //var_dump($keys);
+    var_dump($values);
+    return implode('/',$values);
+}
+
+//多个值：1，2，返回 分类1/分类2
+function muti_enum_value($type,$keys){
+    $extra = get_extra(6,$type);
+    var_dump($extra);
+    $keys = explode(',',$keys);
+    $values = [];
+    foreach ($keys as $k) {
+        $values[] = $extra[$k];
+    }
+    //var_dump($keys);
+    var_dump($values);
+    return implode('/',$values);
+}
+
+function get_enum_key($model_id,$name,$text){
+    $array = get_extra($model_id,$name);
+    //var_dump($array);
+    $k = array_search($text, $array);
+    return $k;
+}
+
+
+function num_format($num){
+    if(!is_numeric($num)){
+        return false;
+    }
+    $num = explode('.',$num);//把整数和小数分开
+    $rl = $num[1];//小数部分的值
+    $j = strlen($num[0]) % 3;//整数有多少位
+    $sl = substr($num[0], 0, $j);//前面不满三位的数取出来
+    $sr = substr($num[0], $j);//后面的满三位的数取出来
+    $i = 0;
+    $rvalue = "";
+    while($i <= strlen($sr)){
+        $rvalue = $rvalue.','.substr($sr, $i, 3);//三位三位取出再合并，按逗号隔开
+        $i = $i + 3;
+    }
+    $rvalue = $sl.$rvalue;
+    $rvalue = substr($rvalue,0,strlen($rvalue)-1);//去掉最后一个逗号
+    $rvalue = explode(',',$rvalue);//分解成数组
+    if($rvalue[0]==0){
+        array_shift($rvalue);//如果第一个元素为0，删除第一个元素
+    }
+    $rv = $rvalue[0];//前面不满三位的数
+    for($i = 1; $i < count($rvalue); $i++){
+        $rv = $rv.','.$rvalue[$i];
+    }
+    if(!empty($rl)){
+        $rvalue = $rv.'.'.$rl;//小数不为空，整数和小数合并
+    }else{
+        $rvalue = $rv;//小数为空，只有整数
+    }
+    return $rvalue;
+}

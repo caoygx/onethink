@@ -60,10 +60,13 @@ function get_list_field($data, $grid){
                 $show   =   isset($array[1])?$array[1]:$value;
                 // 替换系统特殊字符串
                 $href   =   str_replace(
-                    array('[DELETE]','[EDIT]','[LIST]'),
+                    array('[DELETE]','[EDIT]','[LIST]','[SHIFT_DEL]'),
                     array('setstatus?status=-1&ids=[id]',
-                    'edit?id=[id]&model=[model_id]&cate_id=[category_id]',
-                    'index?pid=[id]&model=[model_id]&cate_id=[category_id]'),
+                        'edit?id=[id]&model=[model_id]&cate_id=[category_id]',
+                        'index?pid=[id]&model=[model_id]&cate_id=[category_id]',
+                        'Think/del/model/[model_id]/ids/[id]',
+                        ),
+
                     $href);
 
                 // 替换数据变量
@@ -441,4 +444,12 @@ function get_action_type($type, $all = false){
         return $list;
     }
     return $list[$type];
+}
+
+function getPid($pid){
+    $r = M('Enum')->find($pid);
+    if(empty($r)){
+        return "顶级分类";
+    }
+    return $r['name'];
 }

@@ -82,6 +82,7 @@
                                 <div class="controls">
 									<input type="file" id="upload_picture_{$field.name}">
 									<input type="hidden" name="{$field.name}" id="cover_id_{$field.name}" value="{$data[$field['name']]}"/>
+                                    <input type="hidden" name="picture_path" id="picture_path"/>
 									<div class="upload-img-box">
 									<notempty name="data[$field['name']]">
 										<div class="upload-pre-item"><img src="{$data[$field['name']]|get_cover='path'}"/></div>
@@ -110,6 +111,7 @@
 							    	var src = '';
 							        if(data.status){
 							        	$("#cover_id_{$field.name}").val(data.id);
+                                        $("#picture_path").val(data.path);
 							        	src = data.url || '__ROOT__' + data.path;
 							        	$("#cover_id_{$field.name}").parent().find('.upload-img-box').html(
 							        		'<div class="upload-pre-item"><img src="' + src + '"/></div>'
