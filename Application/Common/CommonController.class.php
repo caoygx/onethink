@@ -7,7 +7,7 @@ use Common\XPage;
 class CommonController extends Controller {
 	protected $m = null;
 	protected $user = array(); //用户信息数组
-	protected $uid = 0; //用户uid
+	protected $user_id = 0; //用户user_id
 	protected $u = null;
 	protected $autoInstantiateModel = true;
 	protected $tempStorageOpenidUser = []; //微信等第三方登录的用户信息临时存储
@@ -17,28 +17,30 @@ class CommonController extends Controller {
 		if($pre){ //有表前缀
 			new CommonModel(CONTROLLER_NAME,$pre);
 		}else{
-            try{
+			try{
                 //检测表存在，则实例化
-                $model = M();
+				$model = M();
                 $tablename = strtolower(C('DB_PREFIX').parse_name(CONTROLLER_NAME));
-                $sqlCheckTable = "SELECT * FROM information_schema.tables WHERE table_name = '$tablename'";
+				$sqlCheckTable = "SELECT * FROM information_schema.tables WHERE table_name = '$tablename'";
                 $tableExist = $model->query($sqlCheckTable);
+
                 //debug($tableExist);
-                if($this->autoInstantiateModel && !empty($tableExist)){
-                    //if(class_exists(CONTROLLER_NAME.'Model',true)){
-                    $this->m = D(CONTROLLER_NAME); //实例化model
-                    //}
-                    if(empty($this->m)){
-                        $this->m = M(CONTROLLER_NAME);
-                    }
-                }
-            }catch(Exception $e){
-                //echo $e->getMessage();
-                //
-            }
+				if($this->autoInstantiateModel && !empty($tableExist)){
+					//if(class_exists(CONTROLLER_NAME.'Model',true)){
+						$this->m = D(CONTROLLER_NAME); //实例化model
+					//}
+					if(empty($this->m)){
+						$this->m = M(CONTROLLER_NAME);
+					}
+
+				}
+			}catch(Exception $e){
+				//echo $e->getMessage();
+				//
+			}
 		}
-		
-		
+
+
 		//简单的权限验证操作
 		if (method_exists ( $this, '_permissionAuthentication' )) {
 			$this->_permissionAuthentication ();
@@ -47,10 +49,17 @@ class CommonController extends Controller {
 		//if(empty($this->m)) exit(CONTROLLER_NAME.'对象不存在');
 
 	}
-	
-	
+
+
 	function _initialize() {
 		//if(!IS_CLI)	$this->requestLog();
+        $u = $this->getAuth();
+        //用户信息
+        if(!empty($this->user_id)){
+            $m = M('User');
+            $r = $m->find($this->user_id);
+            $this->assign ( 'user', $r );
+        }
 	}
 
 
@@ -73,88 +82,129 @@ class CommonController extends Controller {
 		return;
 	}
 
-	public function msg($result,$text = '',$url=''){
+
+	//有连接表显示列表
+	public function indexLink($option=array())
+	{
+		//列表过滤器，生成查询Map对象
+		$map = $this->_search();
+		if (method_exists($this, '_filter')) {
+			$this->_filter($map);
+		}
+		$name = CONTROLLER_NAME;
+		//$model = D ($name);
+		if (!empty ($this->m)) {
+			if ($option['join']) {
+				$this->_listLink($this->m, $map, $option);
+			} else {
+				$this->_list($this->m, $map);
+			}
+		}
+		$this->display();
+	}
+
+    public function msg($result,$text = '',$url=''){
 		if(false !== $result){
 			$this->success($text."成功");
 		}else{
 			$this->error($text."失败");
 		}
 	}
-	
+
 	//获取用户登录凭证信息
 	function getAuth(){
 		$u = getUserAuth();
-		if(!ONLINE){
-			//$u['uid'] = 4;
-		}
 		if(empty($u) && !empty($this->tempStorageOpenidUser)) $u = $this->tempStorageOpenidUser;
-		$this->user = $u;
-		$this->uid = $this->user['uid'];
+
+		$rUserInfo = M('User')->find($u['uid']);
+		$this->user = $rUserInfo;
+		$this->user_id = $this->user['id'];
 		return $u;
 	}
-	
-	/**
-	 * 访问日志，记录用户请求的参数
-	 */
-	function requestLog(){
-		$data = array();
-		$data['url'] = $_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
-		if(IS_POST){
-			$params = $_POST;
-		}elseif(IS_GET){
-			$params = $_GET;
-		}
-		if(empty($params)) $params['input'] = file_get_contents("php://input");
-		$data['params'] = json_encode($params);
-		$data['cookie'] = json_encode($_COOKIE);
-		$data['user_agent'] = $_SERVER['HTTP_USER_AGENT'];
-		$data['ip'] = get_client_ip();
-		$detail = array();
-		$detail['request'] = $_REQUEST;
-		$data['detail'] = json_encode($detail);
-		$data['create_time'] = date("Y-m-d H:i:s");
-		$data['method'] = $_SERVER['REQUEST_METHOD'];
-		$m = M('LogRequest');
-		//$m->create($data);
-		$m->add($data);
-		//echo $m->getLastSql();exit;
-	
-	}
+
+    /**
+     * 访问日志，记录用户请求的参数
+     */
+    function requestLog(){
+
+        $data = array();
+        $scheme = $_SERVER['REQUEST_SCHEME']?:"http";
+        $scheme = 'http';
+        $data['url'] = $scheme.'://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+        if(IS_POST){
+            $params = $_POST;
+        }elseif(IS_GET){
+            $params = $_GET;
+        }
+        if(empty($params)) $params['input'] = file_get_contents("php://input");
+        $data['params'] = json_encode($params);
+        //$data['cookie'] = json_encode($_COOKIE);
+        //$data['user_agent'] = $_SERVER['HTTP_USER_AGENT'];
+        $data['ip'] = get_client_ip();
+        $detail = array();
+        $detail['request'] = $_REQUEST;
+
+        $header = [];
+        $fields = ['HTTP_USER_ID','HTTP_DEVICE_VID','HTTP_DEVICE_ID','HTTP_PLATFORM','HTTP_VERSION']; //'HTTP_USER_AGENT',
+        foreach ($fields as $k => $v){
+            if(empty($_SERVER[$v])) continue;
+            $header[$v] = $_SERVER[$v];
+        }
+        /*$this->version = I('server.HTTP_VERSION');
+        $this->device_id = I('device_id') ?:I('server.HTTP_DEVICE_ID');
+        $this->platform = I('server.HTTP_PLATFORM');
+        $user_id = I('user_id') ?: I('server.HTTP_USER_ID');
+        $detail['server'] = $_SERVER;*/
+        //$detail['header'] = $header;
+        //$data['detail'] = json_encode($detail);
+        $url = $_SERVER['REQUEST_METHOD']." ".$scheme.'://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI']." ".$_SERVER['SERVER_PROTOCOL']."\r\n";
+        $request = $url.getallheaders(true);
+
+        $raw_post = '';
+        if(IS_POST){
+            $raw_post = http_build_query($_POST);
+            if(empty($raw_post)){
+                $raw_post = file_get_contents("php://input");
+            }
+        }
+        $request .= "\r\n\r\n".$raw_post;
+
+        $data['detail'] = $request;
+        $data['user_agent'] = $_SERVER['HTTP_USER_AGENT'];
+        $data['platform'] = I('server.HTTP_PLATFORM');
+        $data['user_id'] = I('server.HTTP_USER_ID');
+        $data['create_time'] = date("Y-m-d H:i:s");
+        $data['method'] = $_SERVER['REQUEST_METHOD'];
+        $m = M('LogRequest');
+        //$m->create($data);
+        $this->logId = $m->add($data);
+        //echo $m->getLastSql();exit;
+
+    }
+
+    function responseLog($id,$response){
+        $data = [];
+        $data['id'] = $id;
+        $data['response'] = $response;
+        $m = M('LogRequest');
+        $m->save($data);
+
+    }
+
 	public function lists() {
+
 
 	    //列表过滤器，生成查询Map对象
 	    $map = $this->_search ();
 	    if (method_exists ( $this, '_filter' )) {
 	        $this->_filter ( $map );
 	    }
-
 	    $name=CONTROLLER_NAME;
 	    //$model = D ($name);
-		//var_dump($this->m);
 	    if (! empty ( $this->m )) {
 	        $this->_list ( $this->m, $map );
 	    }
         $this->toview ();
-	}
-
-	//有连接表显示列表
-	public function indexLink($option=array()) {
-		//列表过滤器，生成查询Map对象
-		$map = $this->_search ();
-		if (method_exists ( $this, '_filter' )) {
-			$this->_filter ( $map );
-		}
-		$name=CONTROLLER_NAME;
-		//$model = D ($name);
-		if (! empty ( $this->m )) {
-			if($option['join']){
-				$this->_listLink ( $this->m, $map,$option );
-			}else{
-				$this->_list($this->m,$map);
-			}
-		}
-		$this->display ();
-		return;
 	}
 
 	/**
@@ -193,11 +243,9 @@ class CommonController extends Controller {
 		if (empty ( $name )) {
 			$name = CONTROLLER_NAME;
 		}
-		//$name=CONTROLLER_NAME;
-		//$model = D ( $name );
-		//var_dump($this->m);exit;
+		if(empty($this->m)) return;
 		$map = array ();
-		foreach ( $this->m->getDbFields () as $key => $val ) {
+		foreach ($this->m->getDbFields () as $key => $val ) {
 			if (isset ( $_REQUEST [$val] ) && $_REQUEST [$val] != '') {
 				$map [$val] = trim($_REQUEST [$val]);
 			}
@@ -234,25 +282,26 @@ class CommonController extends Controller {
 		//接受 sost参数 0 表示倒序 非0都 表示正序
 		//$setOrder = setOrder(array(array('viewCount', 'a.view_count'), 'a.id'), $orderBy, $orderType, 'a');
 		if (isset ( $_REQUEST ['_sort'] )) {
-			$sort = $_REQUEST ['_sort'] ? 'asc' : 'desc';
+			$sort = $_REQUEST ['_sort'] ? 'desc' : 'asc';
 		} else {
 			$sort = $asc ? 'asc' : 'desc';
 		}
 		//取得满足条件的记录数
 		$pk = $model->getPk();
-		$count = $model->where ( $map )->count ( $pk );
+		$count = $model->where ( $map )->count ( $pk );//echo $model->getlastsql();exit('count');
 		if ($count > 0) {
 			import ( "ORG.Util.Page" );
 			//创建分页对象
 			if (! empty ( $_REQUEST ['listRows'] )) {
 				$listRows = $_REQUEST ['listRows'];
 			} else {
-				$listRows = '10';
+				$listRows = '16';
 			}
-			$p = new \Think\Page ( $count, $listRows );
+			$p = new \Common\XPage ( $count, $listRows );
+            //$p = new \Think\Page ( $count, $listRows );
 			$p->rollPage = 7;
 			//echo C('PAGE_STYLE');exit;
-			$p->style = C('PAGE_STYLE');//设置风格
+			//$p->style = C('PAGE_STYLE');//设置风格
 			//分页查询数据
 			//var_dump($p->listRows);exit;
 			$voList = $model->where($map)->order( "`" . $order . "` " . $sort)->limit($p->firstRow . ',' . $p->listRows)->select ( );
@@ -264,8 +313,7 @@ class CommonController extends Controller {
 			//分页跳转的时候保证查询条件
 			foreach ( $map as $key => $val ) {
 				if (! is_array ( $val )) {
-					//$p->parameter .= "$key=" . urlencode ( $val ) . "&";
-					$p->parameter[$key] = $val;
+                    $p->parameter[$key] = urlencode ( $val );
 				}
 			}
 			//分页显示
@@ -274,6 +322,7 @@ class CommonController extends Controller {
 			$sortImg = $sort; //排序图标
 			$sortAlt = $sort == 'desc' ? '升序排列' : '倒序排列'; //排序提示
 			$sort = $sort == 'desc' ? 1 : 0; //排序方式
+
 			//模板赋值显示
 			$this->assign ( 'list', $voList );
 			$this->assign ( 'sort', $sort );
@@ -281,6 +330,9 @@ class CommonController extends Controller {
 			$this->assign ( 'sortImg', $sortImg );
 			$this->assign ( 'sortType', $sortAlt );
 			$this->assign ( "page", $page );
+            $this->assign ( "totalRows", $p->totalRows );
+            $this->assign ( "totalPages", $p->totalPages );
+
 		}
 		cookie( '_currentUrl_', __SELF__ );
 		return;
@@ -476,11 +528,6 @@ class CommonController extends Controller {
 
 		$field || $field = "*";
 		$table || $table = $model->getTableName();
-		//$table = "{$this->trueTableName} j";
-		//$r = $this->table($table)->field($field)->join($join)->where($map)->count();
-
-		//dump($r);
-		//return $r;
 
 		//排序字段 默认为主键名
 		if (isset ( $_REQUEST ['_order'] )) {
@@ -503,8 +550,7 @@ class CommonController extends Controller {
 			//处理map查询条件
 			$count = $db->query($sqlCount);
 		}else{
-			$pk = $model->getPk();
-			$count = $model->table($table)->field($field)->join($join)->where($map)->count( $pk );
+			$count = $model->field($field)->join($join)->where($map)->count(  );
 		}
 		if ($count > 0) {
 			import ( "ORG.Util.XPage" );
@@ -689,6 +735,7 @@ class CommonController extends Controller {
 		if (method_exists ( $this, '_replacePublic' )) {
 			$this->_replacePublic ( $vo );
 		}
+		$this -> assign('action','add');
 		$this->toview();
 		//$this->display ();
 	}
@@ -709,6 +756,7 @@ class CommonController extends Controller {
 		}
 		cookie( '_currentUrl_', __SELF__ );
 		$this->vo = $vo;
+        $this -> assign('action','edit');
 		if(IS_MOBILE){
 			$this->toview("","wapadd");
 		}else{
@@ -772,7 +820,7 @@ class CommonController extends Controller {
 				$condition = array ($pk => array ('in', explode ( ',', $id ) ) );
 				$list=$this->m->where ( $condition )->setField ( 'status', - 1 );
 				if ($list!==false) {
-					$this->success ('删除成功！' );
+					$this->success ('删除成功！',cookie ( '_currentUrl_' ));
 				} else {
 					$this->error ('删除失败！');
 				}
@@ -791,8 +839,9 @@ class CommonController extends Controller {
 			if (isset ( $id )) {
 				$condition = array ($pk => array ('in', explode ( ',', $id ) ) );
 				if (false !== $this->m->where ( $condition )->delete ()) {
-					//echo $this->m->getlastsql();
-					$this->success ('删除成功！');
+					//echo $this->m->getlastsql()
+                    $this->assign ( 'jumpUrl', cookie ( '_currentUrl_' ) );
+					$this->success ('删除成功！',cookie ( '_currentUrl_' ));
 				} else {
 					$this->error ('删除失败！');
 				}
@@ -949,10 +998,9 @@ function saveSort() {
 		return "发布成功!  <a href='$app/$nextModel/add'>发布{$nextModelText}信息</a> <a href='$url/edit/id/$id'>返回修改信息</a> <a href='$url/'>返回列表</a>";
 	}
 
-	public function show(){
+	public function show($content="",$charset='',$contentType='',$prefix=''){
 		$id = I('id');
 		$vo = $this->m->getById ( $id );
-		//echo $this->m->getLastSql();exit;
 		if (method_exists ( $this, '_show' )) {
 			$this->_show ( $vo );
 		}
@@ -968,17 +1016,17 @@ function saveSort() {
 	//保存添加和编辑
 	function save() {
 		//var_dump($this->isAjax());exit;
-
-		$id = $_REQUEST [$this->m->getPk ()];
+		$id = I($this->m->getPk ());
 		//$vo = $this->m->getById ( $id );
 
 		if(empty($id)){
-			$_POST['uid'] = $this->uid; //添加时默认加上用户id
+			$_POST['user_id'] = $this->user_id; //添加时默认加上用户id
 			if (false === $this->m->create ()) {
 				$this->error ( $this->m->getError () );
 			}
 			$r=$this->m->add ();
 		}else{
+
 			if (false === $this->m->create ()) {
 				$this->error ( $this->m->getError () );
 			}
@@ -986,10 +1034,10 @@ function saveSort() {
 		}
 		//保存当前数据对象
 
-		//echo $this->m->getLastSql();//exit;
+		//echo $this->m->getLastSql();exit;
 		if ($r!==false) { //保存成功
 			$this->assign ( 'jumpUrl', cookie ( '_currentUrl_' ) );
-			$this->success ('保存成功!');
+			$this->success ('保存成功!',cookie ( '_currentUrl_' ));
 		} else {
 			//失败提示
 			$this->error ('保存失败!');
@@ -998,6 +1046,18 @@ function saveSort() {
 
 	}
 
+	function responseFormat(){
+	    $format = "";
+	    if(IS_AJAX || C('RETRUN_FORMAT') == "android_json" || I('ret_format') == 'json' || $_SERVER['HTTP_ACCEPT'] == 'application/json'){ //json,app: code,msg,data
+	        return "json";
+	    }elseif (!empty(I(C('VAR_JSONP_HANDLER')))){ //jsonp
+	        return "jsonp";
+	    }elseif(isMobile()){
+	        return "wap";
+	    }else{
+	        return "web";
+	    }
+	}
 
 	/**
 	* @name 根据请求方式，显示对应的格式到页面
@@ -1008,15 +1068,18 @@ function saveSort() {
 	public function toview($data = "",  $tpl=""){
 		if(empty($data)) $data = $this->get();
 		//if(!empty($tpl)) $this->display($tpl);
-		
-		if(IS_AJAX || C('RETRUN_FORMAT') == "android_json" || I('ret_format') == 'json'){ //json,app: code,msg,data
-			$this->success($data,"",1);
-		}elseif (!empty(I(C('VAR_JSONP_HANDLER')))){ //jsonp 
+		//var_dump($_SERVER);exit;
+		if(IS_AJAX || C('RETRUN_FORMAT') == "android_json" || I('ret_format') == 'json' || $_SERVER['HTTP_ACCEPT'] == 'application/json'){ //json,app: code,msg,data
+			if(empty($data)) $data = (object)$data;
+		    $this->success($data,"",1);
+		}elseif (!empty(I(C('VAR_JSONP_HANDLER')))){ //jsonp
 			$this->ajaxReturn(array("code" =>1, "msg" => "","data" => $data),'JSONP');
 		}elseif(isMobile()){ //wap
-			$wapTpl = "wap".ACTION_NAME;
+
+			empty($tpl) && $tpl = ACTION_NAME;
+			$wapTpl = "wap".$tpl;
 			$templateFile   =   $this->view->parseTemplate($wapTpl);
-			
+
 			//var_dump($templateFile);exit;
 			//if()
 			if("http://".$_SERVER['HTTP_HOST'] !=URL_M && "http://".$_SERVER['HTTP_HOST'] != URL_USER) redirect(URL_M.__SELF__);
@@ -1025,8 +1088,8 @@ function saveSort() {
 		}else{ //web
     		$this->display($tpl);
 		}
-		
-		
+
+
 		/* if(!empty(I(C('VAR_JSONP_HANDLER')))){ //ajax返回,默认json格式
 			$this->ajaxReturn($data,$type);
 		}elseif(IS_AJAX){ //jsonp格式
@@ -1034,7 +1097,7 @@ function saveSort() {
 			$this->success($data,"成功！",1);
 		}elseif(C('RETRUN_FORMAT') == "android_json" || I('ret_format') == 'json'){
 			$this->ajaxReturn($data); //android格式数据必须有个[]
-	 
+
 		}elseif(isMobile()){
 			$this->display("wap".__ACTION__);
 		}else{ //html
@@ -1047,12 +1110,17 @@ function saveSort() {
 	}
 	function error($message='',$jumpUrl='',$ajax=false){
 		$status = 0;
+		if( in_array($this->responseFormat(),['json','jsonp'])){
+            $ajax = 1;
+            $type = $this->responseFormat();
+		}
+
 		if($ajax || IS_AJAX) {// AJAX提交
 			$data           =   is_array($ajax)?$ajax:array();
 			$data['code'] =   $status;
 			$data['msg']   =   $message;
-			$data['url']    =   $jumpUrl;
-			$this->ajaxReturn($data);
+			$data['data']    =   (object)array();
+			$this->ajaxReturn($data,$type);
 		}
 		if(is_int($ajax)) $this->assign('waitSecond',$ajax);
 		if(!empty($jumpUrl)) $this->assign('jumpUrl',$jumpUrl);
@@ -1081,13 +1149,14 @@ function saveSort() {
 			exit ;
 		}
 	}
-	
+
 	function dispatchJump2($message='',$status = 1,$jumpUrl='',$ajax=false){
 		if($ajax || IS_AJAX) {// AJAX提交
 			$data           =   is_array($ajax)?$ajax:array();
 			$data['code'] =   $status;
+			$data['msg']    =   "";
 			$data['data']   =   $message;
-			$data['url']    =   $jumpUrl;
+
 			$this->ajaxReturn($data);
 		}
 		if(is_int($ajax)) $this->assign('waitSecond',$ajax);
@@ -1120,10 +1189,10 @@ function saveSort() {
 
 	//用户信息
 	function userinfo(){
-		if(empty($this->uid)) return;
+		if(empty($this->user_id)) return;
 
 		$u = M('User');
-		$userinfo = $u->find($this->uid);
+		$userinfo = $u->find($this->user_id);
 		unset($userinfo['id']);
 		unset($userinfo['pwd']);
 		unset($userinfo['open_id']);
@@ -1146,6 +1215,12 @@ function saveSort() {
 		$this->pageTitle = empty($title) ? C('SITE_TITLE') :  $title.'_'.C('SITE_TITLE');
 		//$title && $title = $title."_";
 		//$this->pageTitle = $title.C('SITE_TITLE');
+	}
+
+	//验证码
+	public function createVerifyCode(){
+		$Verify = new \Think\Verify();
+		$Verify->entry();
 	}
 
 

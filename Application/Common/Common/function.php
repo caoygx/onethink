@@ -531,7 +531,8 @@ function get_document_model($id = null, $field = null){
 
     /* 获取模型名称 */
     if(empty($list)){
-        $map   = array('status' => 1, 'extend' => 1);
+        //$map   = array('status' => 1, 'extend' => 1);
+        $map   = array('status' => 1, ); //去除extend条件，记独立模型显示出来
         $model = M('Model')->where($map)->field(true)->select();
         foreach ($model as $value) {
             $list[$value['id']] = $value;
@@ -1018,50 +1019,216 @@ function check_category_model($info){
 }
 
 
-// 分析枚举类型字段值 格式 a:名称1,b:名称2
-// 暂时和 parse_config_attr功能相同
-// 但请不要互相使用，后期会调整
-function parse_field_attr($string) {
-    if(0 === strpos($string,':')){
-        // 采用函数定义
-        return   eval('return '.substr($string,1).';');
-    }elseif(0 === strpos($string,'[')){
-        // 支持读取配置参数（必须是数组类型）
-        return C(substr($string,1,-1));
-    }
 
-    $array = preg_split('/[,;\r\n]+/', trim($string, ",;\r\n"));
-    if(strpos($string,':')){
-        $value  =   array();
-        foreach ($array as $val) {
-            list($k, $v) = explode(':', $val);
-            $value[$k]   = $v;
+
+
+
+
+function time_tran($the_time) {
+    $now_time = date("Y-m-d H:i:s", time());
+    $now_time = strtotime($now_time);
+    $show_time = strtotime($the_time);
+    $dur = $now_time - $show_time;
+    if ($dur < 0) {
+        return $the_time;
+    } else {
+        if ($dur < 60) {
+            return $dur . '秒前';
+        } else {
+            if ($dur < 3600) {
+                return floor($dur / 60) . '分钟前';
+            } else {
+                if ($dur < 86400) {
+                    return floor($dur / 3600) . '小时前';
+                } else {
+                    //if ($dur < 259200) {//3天内
+                        return floor($dur / 86400) . '天前';
+                    /*} else {
+                        return $the_time;
+                    }*/
+                }
+            }
         }
-    }else{
-        $value  =   $array;
     }
-    return $value;
 }
+
+
 
 function isMobile(){
-    return false;
+    $r = userAgent($_SERVER['HTTP_USER_AGENT']);
+    return ($r == "mobile");
 }
 
-function get_extra($model_id,$name){
-    $where['model_id'] = $model_id;
-    $where['name'] = $name;
-    $extra = M('Attribute')->where($where)->find()['extra'];
-    $extra = parse_field_attr($extra);
-    return $extra;
-}
-
-function enum_value($type,$keys){
-    $extra = get_extra(5,$type);
-    $keys = explode(',',$keys);
-    $values = [];
-    foreach ($keys as $k) {
-        $values[] = $extra[$k];
+function androidTablet($ua){ //Find out if it is a tablet
+    if(strstr(strtolower($ua), 'android') ){//Search for android in user-agent
+        if(!strstr(strtolower($ua), 'mobile')){ //If there is no ''mobile' in user-agent (Android have that on their phones, but not tablets)
+            return true;
+        }
     }
-    return implode('/',$values);
 }
 
+function userAgent($ua){
+    ## This credit must stay intact (Unless you have a deal with @lukasmig or frimerlukas@gmail.com
+    ## Made by Lukas Frimer Tholander from Made In Osted Webdesign.
+    ## Price will be $2
+
+    $iphone = strstr(strtolower($ua), 'mobile'); //Search for 'mobile' in user-agent (iPhone have that)
+    $android = strstr(strtolower($ua), 'android'); //Search for 'android' in user-agent
+    $windowsPhone = strstr(strtolower($ua), 'phone'); //Search for 'phone' in user-agent (Windows Phone uses that)
+
+
+
+    $androidTablet = androidTablet($ua); //Do androidTablet function
+    $ipad = strstr(strtolower($ua), 'ipad'); //Search for iPad in user-agent
+
+    if($androidTablet || $ipad){ //If it's a tablet (iPad / Android)
+        return 'tablet';
+    }
+    elseif($iphone && !$ipad || $android && !$androidTablet || $windowsPhone){ //If it's a phone and NOT a tablet
+        return 'mobile';
+    }
+    else{ //If it's not a mobile device
+        return 'desktop';
+    }
+}
+
+
+
+//播放地址
+function purl($id){
+    return U('/home/index/show/id/'.$id);
+}
+//分类url
+function cateurl($category_id){
+    return U('/home/index/lists/',['category_id' =>$category_id]);
+}
+
+
+//================== 用户相关 start ================//
+/**
+ * 保存用户登录凭证
+ */
+function setUserAuth($u){
+    //$u = array();
+    if (C('AUTH_STORE_WAY') == 'session') {
+        //var_dump($u);
+
+        $_SESSION[C('USER_AUTH_KEY')] = $u['id'];
+        $_SESSION["username"] = $u['username'];
+
+    }else{
+        import("ORG.Util.Cookie");
+        //var_dump(Cookie::b("uid", $u['uid']));
+        //$id = Cookie::get(C('USER_AUTH_KEY'));
+        cookie("username",$u['username']);
+        cookie("uid", \Think\Crypt::encrypt($u['uid'],C('crypt_key')));
+        cookie('type', $u['type']);
+    }
+}
+
+/**
+ * 获取用户登录凭证信息
+ */
+function getUserAuth(){
+    $u = array();
+    if (C('AUTH_STORE_WAY') == 'session') {
+        $id = $_SESSION[C('USER_AUTH_KEY')];
+        $u['username'] = $_SESSION["username"];
+        $u['uid'] = $_SESSION[C('USER_AUTH_KEY')];
+        $u['type'] = $_SESSION['type'];
+
+    }else{
+        //$id = cookie(C('USER_AUTH_KEY'));
+        $u['username'] = cookie("username","");
+        $u['uid'] = \Think\Crypt::decrypt(cookie('uid',""),C('crypt_key'));
+        $u['type'] = cookie('type',"");
+        //var_dump($_COOKIE);
+        //exit;
+    }
+
+    return $u;
+}
+
+/**
+ * 获取用户登录凭证信息
+ */
+function clearUserAuth(){
+    $u = array();
+    if (C('AUTH_STORE_WAY') == 'session') {
+        unset($_SESSION[C('USER_AUTH_KEY')]);
+        unset($_SESSION["username"]);
+        unset($_SESSION[C('USER_AUTH_KEY')]);
+        unset($_SESSION['utype']);
+
+    }else{
+
+        cookie("username",null);
+        cookie("uid",null);
+    }
+    return $u;
+}
+
+
+
+/**
+ * 得到登录的用户id
+ */
+function getUserId(){
+    if (C('AUTH_STORE_WAY') == 'cookie') {
+        $id = Cookie::get(C('USER_AUTH_KEY'));
+
+    }else{
+        $id = $_SESSION[C('USER_AUTH_KEY')];
+    }
+    //echo $_SESSION[C('USER_AUTH_KEY')];
+    return $id;
+}
+
+/**
+ * 得到登录的用户信息
+ */
+function getUserInfo(){
+    //个人简历
+    //企业信息
+    //学校信息
+    $sql = "";
+    $user = D('Member');
+    if ($id = getUserId()) {
+        return $user->find(getUserId());
+    }
+}
+//================== 用户相关 end ================//
+
+
+
+
+
+function sendmail($subject,$body,$to,$toname,$from = "",$fromname = '网',$altbody = '网的邮件',$wordwrap = 80,$mailconf = ''){
+    Vendor('phpmail.class#phpmailer');
+    $mail             = new PHPMailer();
+    $mail->IsSMTP();
+    $mail->SMTPDebug  = 2;                   // enables SMTP debug // 1 = errors and messages// 2 = messages only
+    $mail->SMTPAuth   = true;
+    $mail->Host       = C('M_HOST');
+    $mail->Port       = 25;
+    $mail->Username   = C('M_USER');
+    $mail->Password   = C('M_PASSWORD');
+    $from = !strpos(C('M_USER'),'@') ? C('M_USER').'@'.C('M_DOMAIN') : 'admin@qq.com';
+    $mail->SetFrom($from, $fromname);
+
+    //$mail->AddReplyTo($to,$toname);
+    $mail->CharSet = 'UTF-8';
+    $mail->Encoding = 'base64';
+
+    $mail->Subject    = $subject;
+    //$body             = eregi_replace("[\]",'',$body);
+    //$mail->AltBody    = "AltBody"; // optional, comment out and test
+
+    $mail->MsgHTML($body);
+    $mail->AddAddress($to, $toname);
+    if(!$mail->Send()) {
+        //echo "Mailer Error: " . $mail->ErrorInfo;
+    } else {
+        //echo "Message sent!";
+    }
+}
