@@ -1,5 +1,9 @@
 <extend name="Public/base" />
 
+<block name="sidebar">
+    <include file="sidemenu" />
+</block>
+
 <block name="body">
 <script type="text/javascript" src="__STATIC__/uploadify/jquery.uploadify.min.js"></script>
     <div class="main-title cf">
@@ -31,7 +35,7 @@
                                 <input type="text" class="text input-large" name="{$field.name}" id="{$field.name}" value="">
                             </case>
                             <case value="hidden">
-                                <input type="hidden" class="text input-large" name="{$field.name}" value="{$Think.request.category_id}">
+                                <input type="hidden" class="text input-large" name="{$field.name}" value="{:I($field['name'])}">
                             </case>
                             <case value="textarea">
                                 <label class="textarea input-large">

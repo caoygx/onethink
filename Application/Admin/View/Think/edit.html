@@ -1,5 +1,9 @@
 <extend name="Public/base" />
 
+<block name="sidebar">
+    <include file="sidemenu" />
+</block>
+
 <block name="body">
 <script type="text/javascript" src="__STATIC__/uploadify/jquery.uploadify.min.js"></script>
     <div class="main-title cf">
@@ -82,7 +86,7 @@
                                 <div class="controls">
 									<input type="file" id="upload_picture_{$field.name}">
 									<input type="hidden" name="{$field.name}" id="cover_id_{$field.name}" value="{$data[$field['name']]}"/>
-                                    <input type="hidden" name="picture_path" id="picture_path"/>
+                                    <input type="hidden" name="picture_path" id="picture_path" value="{$data[picture_path]}"/>
 									<div class="upload-img-box">
 									<notempty name="data[$field['name']]">
 										<div class="upload-pre-item"><img src="{$data[$field['name']]|get_cover='path'}"/></div>

@@ -20,7 +20,7 @@ class ThinkController extends AdminController {
      * @param  String $model 模型标识
      * @author 麦当苗儿 <zuojiazi@vip.qq.com>
      */
-    public function lists($model = null, $p = 0){
+    public function lists($model = null, $p = 0,$tpl=''){
         $model || $this->error('模型名标识必须！');
         $page = intval($p);
         $page = $page ? $page : 1; //默认显示第一页数据
@@ -136,7 +136,7 @@ class ThinkController extends AdminController {
         $this->assign('list_grids', $grids);
         $this->assign('list_data', $data);
         $this->meta_title = $model['title'].'列表';
-        $this->display($model['template_list']);
+        $this->display($tpl ?: $model['template_list']);
     }
 
     public function del($model = null, $ids=null){
@@ -166,7 +166,7 @@ class ThinkController extends AdminController {
         return parent::setStatus($model);
     }
     
-    public function edit($model = null, $id = 0){
+    public function edit($model = null, $id = 0,$tpl=''){
         //获取模型信息
         $model = M('Model')->find($model);
         $model || $this->error('模型不存在！');
@@ -191,11 +191,11 @@ class ThinkController extends AdminController {
             $this->assign('fields', $fields);
             $this->assign('data', $data);
             $this->meta_title = '编辑'.$model['title'];
-            $this->display($model['template_edit']?$model['template_edit']:'');
+            $this->display($tpl?:($model['template_edit']?$model['template_edit']:''));
         }
     }
 
-    public function add($model = null){
+    public function add($model = null,$tpl=''){
         //获取模型信息
         $model = M('Model')->where(array('status' => 1))->find($model);
         $model || $this->error('模型不存在！');
@@ -203,8 +203,17 @@ class ThinkController extends AdminController {
             $Model  =   D(parse_name(get_table_name($model['id']),1));
             // 获取模型的字段信息
             $Model  =   $this->checkAttr($Model,$model['id']);
-            if($Model->create() && $Model->add()){
-                $this->success('添加'.$model['title'].'成功！', U('lists?model='.$model['name']));
+            if(($d = $Model->create()) && $Model->add()){
+
+                $param = [];
+                $param['model'] = $model['name'];
+                if($d['category_id']){
+                    $param['category_id'] = $d['category_id'];
+                }
+                //$url = 'lists?model='.$model['name'];
+                $url = 'lists?'.http_build_query($param);
+                $url = U($url);
+                $this->success('添加'.$model['title'].'成功！', $url);
             } else {
                 $this->error($Model->getError());
             }
@@ -215,7 +224,7 @@ class ThinkController extends AdminController {
             $this->assign('model', $model);
             $this->assign('fields', $fields);
             $this->meta_title = '新增'.$model['title'];
-            $this->display($model['template_add']?$model['template_add']:'');
+            $this->display($tpl?:($model['template_add']?$model['template_add']:''));
         }
     }
 
